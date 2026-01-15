@@ -126,9 +126,26 @@ git push origin update/your-feature-name
 3. Click "Import Project"
 4. Select your GitHub repository
 5. Vercel will auto-detect Next.js and configure everything
-6. Click "Deploy"
+6. **BEFORE deploying**, set up databases and environment variables (see below)
+7. Click "Deploy"
 
 Your site will be live at `https://your-project-name.vercel.app`
+
+### Database & Cache Setup (REQUIRED)
+
+The team leaderboard feature requires Vercel Postgres and Vercel KV. Follow the detailed setup guide:
+
+📖 **See [SETUP_DATABASE.md](./SETUP_DATABASE.md) for complete instructions**
+
+Quick summary:
+1. Create Vercel Postgres database in your project
+2. Run the migration from `lib/db/migrations/001_initial.sql`
+3. Create Vercel KV (Redis) cache
+4. Generate and add authentication secrets:
+   ```bash
+   node scripts/generate-secrets.js "your-team-password"
+   ```
+5. Add environment variables to Vercel (see `.env.example`)
 
 ### Custom Domain (Optional)
 
@@ -137,6 +154,16 @@ In Vercel dashboard:
 2. Click "Settings" → "Domains"
 3. Add your custom domain
 4. Follow the DNS configuration instructions
+
+## Team Leaderboard (Password Protected)
+
+The `/team` area is password-protected and shows:
+- Weekly training leaderboard (coming in Phase 3)
+- Swimming activities highlighted with 1.5x weight
+- Real-time activity feed from Strava
+- HR intensity dashboard (informational only)
+
+**To access**: Visit `/team/login` and enter the team password
 
 ## Important Files
 

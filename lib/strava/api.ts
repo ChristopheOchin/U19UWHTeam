@@ -115,13 +115,26 @@ async function stravaRequest<T>(
 
 /**
  * Fetch list of athletes the authenticated user (coach) follows
+ *
+ * Note: Strava deprecated the /athlete/friends endpoint in 2024.
+ * Alternative: Use club members endpoint or manually track athlete IDs.
+ * For now, returns authenticated athlete only for testing.
  */
 export async function fetchFollowedAthletes(): Promise<StravaAthlete[]> {
   return rateLimiter.execute(async () => {
-    const athletes = await stravaRequest<StravaAthlete[]>(
-      '/athlete/friends?per_page=200'
-    );
-    return athletes;
+    try {
+      // Try the friends endpoint first (may not work with current scopes)
+      const athletes = await stravaRequest<StravaAthlete[]>(
+        '/athlete/friends?per_page=200'
+      );
+      return athletes;
+    } catch (error) {
+      // Fallback: Return authenticated athlete only
+      console.warn('⚠️  Friends endpoint failed, returning authenticated athlete only');
+      console.warn('    To track team members, use Strava club members endpoint instead.');
+      const athlete = await stravaRequest<StravaAthlete>('/athlete');
+      return [athlete];
+    }
   });
 }
 
@@ -204,4 +217,88 @@ export async function fetchActivity(
   return rateLimiter.execute(async () => {
     return stravaRequest<StravaActivity>(`/activities/${activityId}`);
   });
+}
+
+/**
+ * Fetch club members from a Strava club
+ *
+ * The team has a Strava club: https://www.strava.com/clubs/1853738
+ * Note: Club members endpoint returns limited data (no IDs).
+ * Better to use fetchClubActivities() to get athlete info with activities.
+ *
+ * @param clubId - Strava club ID (1853738 for U19 USA UWH)
+ */
+export async function fetchClubMembers(
+  clubId: number = 1853738
+): Promise<StravaAthlete[]> {
+  return rateLimiter.execute(async () => {
+    const members = await stravaRequest<StravaAthlete[]>(
+      `/clubs/${clubId}/members?per_page=200`
+    );
+    return members;
+  });
+}
+
+/**
+ * Fetch recent activities from a Strava club
+ *
+ * This is the best way to get team activities - it returns full activity objects
+ * with athlete IDs embedded, solving the "no athlete IDs in members" problem.
+ *
+ * @param clubId - Strava club ID (1853738 for U19 USA UWH)
+ * @param page - Page number (default 1)
+ * @param perPage - Results per page (default 200, max 200)
+ */
+export async function fetchClubActivities(
+  clubId: number = 1853738,
+  page = 1,
+  perPage = 200
+): Promise<StravaActivity[]> {
+  return rateLimiter.execute(async () => {
+    const activities = await stravaRequest<StravaActivity[]>(
+      `/clubs/${clubId}/activities?page=${page}&per_page=${perPage}`
+    );
+    return activities;
+  });
+}
+
+/**
+ * Fetch all recent club activities (last 7 days worth)
+ *
+ * Fetches multiple pages if needed to get all recent activities.
+ */
+export async function fetchAllRecentClubActivities(
+  clubId: number = 1853738
+): Promise<StravaActivity[]> {
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const allActivities: StravaActivity[] = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore && page <= 5) {
+    // Safety limit: max 5 pages
+    const activities = await fetchClubActivities(clubId, page, 200);
+
+    if (activities.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    // Filter activities from last 7 days
+    const recentActivities = activities.filter((activity) => {
+      const activityDate = new Date(activity.start_date).getTime();
+      return activityDate >= sevenDaysAgo;
+    });
+
+    allActivities.push(...recentActivities);
+
+    // If we got fewer results than requested, or oldest activity is > 7 days old, stop
+    if (activities.length < 200 || recentActivities.length < activities.length) {
+      hasMore = false;
+    }
+
+    page++;
+  }
+
+  return allActivities;
 }

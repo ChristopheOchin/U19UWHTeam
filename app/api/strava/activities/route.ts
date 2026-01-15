@@ -9,10 +9,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import {
-  fetchFollowedAthletes,
-  fetchWeeklyActivities,
-} from '@/lib/strava/api';
+import { fetchAllRecentClubActivities } from '@/lib/strava/api';
 import { scoreActivities } from '@/lib/scoring/activities';
 import {
   upsertAthletes,
@@ -20,6 +17,7 @@ import {
   refreshWeeklyLeaderboard,
 } from '@/lib/db/queries';
 import { kv } from '@/lib/cache/redis';
+import type { StravaAthlete } from '@/lib/strava/types';
 
 const SYNC_CACHE_KEY = 'strava:last_sync';
 const SYNC_CACHE_TTL = 5 * 60; // 5 minutes
@@ -39,17 +37,33 @@ export async function GET(request: Request) {
       });
     }
 
-    // Fetch team members (athletes)
-    console.log('Fetching team members from Strava...');
-    const athletes = await fetchFollowedAthletes();
+    // Fetch activities from Strava club (ID: 1853738)
+    // This gets us both activities AND athlete info in one call
+    console.log('Fetching recent activities from Strava club (last 7 days)...');
+    const activities = await fetchAllRecentClubActivities(1853738);
+
+    // Extract unique athletes from activities
+    const athleteMap = new Map<number, StravaAthlete>();
+    activities.forEach((activity) => {
+      if (activity.athlete && activity.athlete.id) {
+        // Store unique athletes
+        if (!athleteMap.has(activity.athlete.id)) {
+          athleteMap.set(activity.athlete.id, {
+            id: activity.athlete.id,
+            username: '',
+            firstname: '',
+            lastname: '',
+            profile: '',
+          } as StravaAthlete);
+        }
+      }
+    });
+
+    const athletes = Array.from(athleteMap.values());
 
     // Store athletes in database
-    console.log(`Storing ${athletes.length} athletes...`);
+    console.log(`Storing ${athletes.length} athletes from activities...`);
     await upsertAthletes(athletes);
-
-    // Fetch activities for the last 7 days
-    console.log('Fetching weekly activities from Strava...');
-    const activities = await fetchWeeklyActivities();
 
     // Score activities
     console.log(`Scoring ${activities.length} activities...`);

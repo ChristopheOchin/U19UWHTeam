@@ -9,7 +9,10 @@
  */
 
 import { NextResponse } from 'next/server';
-import { fetchAllRecentClubActivities } from '@/lib/strava/api';
+import {
+  fetchAuthenticatedAthlete,
+  fetchAuthenticatedAthleteActivities,
+} from '@/lib/strava/api';
 import { scoreActivities } from '@/lib/scoring/activities';
 import {
   upsertAthletes,
@@ -17,7 +20,6 @@ import {
   refreshWeeklyLeaderboard,
 } from '@/lib/db/queries';
 import { kv } from '@/lib/cache/redis';
-import type { StravaAthlete } from '@/lib/strava/types';
 
 const SYNC_CACHE_KEY = 'strava:last_sync';
 const SYNC_CACHE_TTL = 5 * 60; // 5 minutes
@@ -37,33 +39,25 @@ export async function GET(request: Request) {
       });
     }
 
-    // Fetch activities from Strava club (ID: 1853738)
-    // This gets us both activities AND athlete info in one call
-    console.log('Fetching recent activities from Strava club (last 7 days)...');
-    const activities = await fetchAllRecentClubActivities(1853738);
+    // NOTE: Strava's club activities endpoint doesn't provide full activity data
+    // (no IDs, no dates, no athlete IDs). We use the authenticated athlete endpoint instead.
+    //
+    // For testing: Fetches coach's activities
+    // For production: Expand to fetch all team member activities using stored athlete IDs
+    // See: lib/strava/team-members.ts for team member ID management
 
-    // Extract unique athletes from activities
-    const athleteMap = new Map<number, StravaAthlete>();
-    activities.forEach((activity) => {
-      if (activity.athlete && activity.athlete.id) {
-        // Store unique athletes
-        if (!athleteMap.has(activity.athlete.id)) {
-          athleteMap.set(activity.athlete.id, {
-            id: activity.athlete.id,
-            username: '',
-            firstname: '',
-            lastname: '',
-            profile: '',
-          } as StravaAthlete);
-        }
-      }
-    });
+    console.log('Fetching authenticated athlete info...');
+    const athlete = await fetchAuthenticatedAthlete();
 
-    const athletes = Array.from(athleteMap.values());
+    console.log(`Authenticated as: ${athlete.firstname} ${athlete.lastname} (ID: ${athlete.id})`);
 
-    // Store athletes in database
-    console.log(`Storing ${athletes.length} athletes from activities...`);
-    await upsertAthletes(athletes);
+    // Store athlete in database
+    await upsertAthletes([athlete]);
+
+    // Fetch activities for the last 7 days
+    const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
+    console.log('Fetching activities from last 7 days...');
+    const activities = await fetchAuthenticatedAthleteActivities(sevenDaysAgo, undefined, 200);
 
     // Score activities
     console.log(`Scoring ${activities.length} activities...`);
@@ -90,8 +84,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       syncedAt: new Date().toISOString(),
+      athlete: {
+        id: athlete.id,
+        name: `${athlete.firstname} ${athlete.lastname}`,
+      },
       stats: {
-        athletes: athletes.length,
         totalActivities: scoredActivities.length,
         swimmingActivities: swimmingCount,
         totalWeightedScore: Math.round(totalWeightedScore),

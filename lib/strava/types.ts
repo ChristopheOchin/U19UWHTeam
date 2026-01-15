@@ -35,6 +35,29 @@ export interface StravaActivity {
   has_heartrate: boolean;
 }
 
+/**
+ * Club activity summary (limited fields returned by /clubs/{id}/activities)
+ */
+export interface StravaClubActivity {
+  resource_state: number;
+  athlete: {
+    resource_state: number;
+    firstname: string;
+    lastname: string;
+  };
+  name: string;
+  distance: number;
+  moving_time: number;
+  elapsed_time: number;
+  total_elevation_gain: number;
+  type: string;
+  sport_type: string;
+  workout_type?: number | null;
+  device_name?: string;
+  // Note: NO id, NO start_date, NO athlete.id
+  // This endpoint only provides summaries
+}
+
 export interface StravaDetailedActivity extends StravaActivity {
   description?: string;
   calories?: number;

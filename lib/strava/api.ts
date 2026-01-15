@@ -209,6 +209,47 @@ export async function fetchWeeklyActivities(): Promise<StravaActivity[]> {
 }
 
 /**
+ * Fetch activities for the authenticated athlete (coach)
+ *
+ * This is useful for testing since we can always get the coach's activities.
+ * Returns full activity objects with all fields including dates and IDs.
+ */
+export async function fetchAuthenticatedAthleteActivities(
+  after?: number,
+  before?: number,
+  perPage = 30
+): Promise<StravaActivity[]> {
+  return rateLimiter.execute(async () => {
+    const params = new URLSearchParams({
+      per_page: perPage.toString(),
+    });
+
+    if (after) {
+      params.append('after', after.toString());
+    }
+
+    if (before) {
+      params.append('before', before.toString());
+    }
+
+    const activities = await stravaRequest<StravaActivity[]>(
+      `/athlete/activities?${params.toString()}`
+    );
+
+    return activities;
+  });
+}
+
+/**
+ * Fetch authenticated athlete info
+ */
+export async function fetchAuthenticatedAthlete(): Promise<StravaAthlete> {
+  return rateLimiter.execute(async () => {
+    return stravaRequest<StravaAthlete>('/athlete');
+  });
+}
+
+/**
  * Fetch a single activity by ID (useful for webhook updates)
  */
 export async function fetchActivity(

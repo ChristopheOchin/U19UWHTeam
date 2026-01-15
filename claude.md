@@ -414,10 +414,31 @@ This is a youth sports team website, so all content and interactions should be:
 - `/lib/strava/oauth.ts` - Access token refresh with caching
 - `/lib/strava/api.ts` - Strava API client with rate limiter
 - `/lib/strava/types.ts` - TypeScript type definitions
+- `/lib/strava/team-members.ts` - Team member Strava IDs (9 athletes)
 - `/lib/scoring/activities.ts` - Activity scoring logic
 - `/lib/scoring/heartrate.ts` - HR zone calculations
 - `/lib/db/queries.ts` - Database CRUD operations
 - `/app/api/strava/activities/route.ts` - Sync endpoint
+
+**Strava API Credentials** (in .env.local):
+```bash
+STRAVA_CLIENT_ID=195839
+STRAVA_CLIENT_SECRET=1ed430c2c3ea2aaa5b51c761a70c9c69984dfb78
+STRAVA_REFRESH_TOKEN=3ccb0600e84563b38a2d6db721694c8271001ae6
+```
+
+**Team Members** (9 athletes in `lib/strava/team-members.ts`):
+- Christophe O. (coach) - 196048899
+- Alex - 109066463
+- Drake - 200721606
+- Fritz - 141454027
+- Max - 137374708
+- Oliver - 200730680
+- Paxton - 180165458
+- Blake - 141634408
+- Levi - 198267219
+
+**Strava Club**: https://www.strava.com/clubs/1853738 (12 members total)
 
 **Scoring Formula Summary**:
 ```
@@ -436,15 +457,82 @@ composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
 - Zone 4: 80-90% max HR (Threshold)
 - Zone 5: 90-100% max HR (VO2 Max)
 
+**Important Strava API Limitations**:
+- ✅ Can fetch authenticated user's (coach's) activities
+- ❌ Cannot fetch other athletes' activities without their individual OAuth
+- ❌ Club activities endpoint lacks critical data (no IDs, dates, athlete IDs)
+- 🔄 Current solution: Using coach's activities for Phase 3 development
+- 🔄 Future solution: Team members make activities public (Option A)
+- See `STRAVA_PRIVACY_SOLUTION.md` and `STRAVA_API_LIMITATIONS.md` for details
+
 ### 🚀 Phase 3: Leaderboard UI (NEXT)
-- Build ranking algorithm and `/api/leaderboard/data` endpoint
-- Create leaderboard components with FOMO elements:
-  - `Leaderboard.tsx` with client-side polling
-  - `AthleteCard.tsx` with swimming glow, gap indicators, streaks
-  - `ActivityFeed.tsx` for real-time activity display
-  - `SwimmingBadge.tsx`, `StreakIndicator.tsx`
-- Mobile responsive design
-- HR Intensity Dashboard (separate informational view)
+
+**Current Status**: Ready to build UI with coach's activity data
+
+**Data Source**: Coach's Strava activities (for testing/development)
+- 9 team member IDs stored in `lib/strava/team-members.ts`
+- Privacy limitation: Can only fetch authenticated user's activities with current OAuth
+- Future: Team members will make activities public (Option A) for full team data
+
+**Components to Build**:
+1. **`/api/leaderboard/data` endpoint**
+   - Fetch from `weekly_leaderboard` materialized view
+   - Return ranked athletes with stats
+   - Include FOMO metadata (gaps, streaks, recent activity)
+
+2. **`components/team/Leaderboard.tsx`** (client component)
+   - Container with 30-second polling
+   - Displays ranked athlete cards
+   - Shows activity feed sidebar
+
+3. **`components/team/AthleteCard.tsx`**
+   - Rank badge (#1, #2, #3)
+   - Swimming spotlight (aqua glow for swim-dominant athletes)
+   - Gap indicator ("234 points behind leader")
+   - Hot streak badge (🔥 + consecutive days)
+   - Real-time pulse animation (if activity < 6h old)
+   - Leader crown (🏆 for #1)
+
+4. **`components/team/ActivityFeed.tsx`**
+   - Recent 20 activities
+   - Swimming activities highlighted with cyan gradient
+   - Time ago display ("2 hours ago")
+   - Athlete name + activity name
+
+5. **`components/team/SwimmingBadge.tsx`**
+   - Aqua/cyan styling
+   - Pool/wave icon
+   - Shows on swimming activities
+
+6. **`components/team/StreakIndicator.tsx`**
+   - Fire emoji 🔥
+   - Number of consecutive days
+   - Only shows if 3+ days
+
+7. **`components/team/HRDashboard.tsx`** (future/optional)
+   - Separate informational view
+   - Bar chart of HR zone distribution
+   - Only for athletes with HR data
+   - NOT used in rankings
+
+**Design Requirements**:
+- **Mobile-first**: Works great on phones (athletes check frequently)
+- **Water theme**: Aqua/cyan for swimming, deep blue primary
+- **FOMO elements**: Visual cues to motivate athletes
+- **Real-time feel**: 30-second polling, pulse animations
+- **Performance**: Sub-1-second load, optimized queries
+
+**Key Formulas** (already implemented in backend):
+```typescript
+weighted_score = (time_minutes + distance_km) × (is_swimming ? 1.5 : 1.0)
+composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
+```
+
+**Test Data Available**:
+- Coach's activities from last 7 days
+- Scoring system validated
+- Database operations working
+- Leaderboard materialized view ready
 
 ### 🚀 Phase 4: Webhooks (FUTURE)
 - Register Strava webhook subscription

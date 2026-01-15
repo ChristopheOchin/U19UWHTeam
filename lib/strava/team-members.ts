@@ -11,12 +11,15 @@
  */
 
 export const TEAM_MEMBER_IDS: number[] = [
-  196048899, // Christophe O. (coach) - for testing
-  // Add team member IDs here as they join
-  // Example:
-  // 123456789, // Fritz R.
-  // 234567890, // Paxton L.
-  // 345678901, // Drake Q.
+  196048899, // Christophe O. (coach)
+  109066463, // Alex
+  200721606, // Drake
+  141454027, // Fritz
+  137374708, // Max
+  200730680, // Oliver
+  180165458, // Paxton
+  141634408, // Blake
+  198267219, // Levi
 ];
 
 /**

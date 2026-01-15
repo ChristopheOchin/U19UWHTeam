@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import {
   fetchAuthenticatedAthlete,
-  fetchAuthenticatedAthleteActivities,
+  fetchAthleteActivities,
 } from '@/lib/strava/api';
 import { scoreActivities } from '@/lib/scoring/activities';
 import {
@@ -20,6 +20,8 @@ import {
   refreshWeeklyLeaderboard,
 } from '@/lib/db/queries';
 import { kv } from '@/lib/cache/redis';
+import { getTeamMemberIds } from '@/lib/strava/team-members';
+import type { StravaActivity, StravaAthlete } from '@/lib/strava/types';
 
 const SYNC_CACHE_KEY = 'strava:last_sync';
 const SYNC_CACHE_TTL = 5 * 60; // 5 minutes
@@ -39,25 +41,57 @@ export async function GET(request: Request) {
       });
     }
 
-    // NOTE: Strava's club activities endpoint doesn't provide full activity data
-    // (no IDs, no dates, no athlete IDs). We use the authenticated athlete endpoint instead.
-    //
-    // For testing: Fetches coach's activities
-    // For production: Expand to fetch all team member activities using stored athlete IDs
-    // See: lib/strava/team-members.ts for team member ID management
-
-    console.log('Fetching authenticated athlete info...');
-    const athlete = await fetchAuthenticatedAthlete();
-
-    console.log(`Authenticated as: ${athlete.firstname} ${athlete.lastname} (ID: ${athlete.id})`);
-
-    // Store athlete in database
-    await upsertAthletes([athlete]);
-
-    // Fetch activities for the last 7 days
+    // Fetch activities from all team members
+    // Team member IDs are maintained in lib/strava/team-members.ts
+    const teamMemberIds = getTeamMemberIds();
     const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
-    console.log('Fetching activities from last 7 days...');
-    const activities = await fetchAuthenticatedAthleteActivities(sevenDaysAgo, undefined, 200);
+
+    console.log(`Fetching activities for ${teamMemberIds.length} team members...`);
+
+    // Fetch activities for each team member
+    const allActivities: StravaActivity[] = [];
+    const athletes: StravaAthlete[] = [];
+
+    for (const athleteId of teamMemberIds) {
+      try {
+        console.log(`  Fetching activities for athlete ID: ${athleteId}`);
+
+        const activities = await fetchAthleteActivities(
+          athleteId,
+          sevenDaysAgo,
+          undefined,
+          30
+        );
+
+        allActivities.push(...activities);
+        console.log(`    ✓ Found ${activities.length} activities`);
+
+        // Extract athlete info from activities
+        if (activities.length > 0 && activities[0].athlete) {
+          // Note: Activities only have athlete.id, not full athlete details
+          // We'll store minimal athlete records
+          athletes.push({
+            id: athleteId,
+            username: '',
+            firstname: '',
+            lastname: '',
+            profile: '',
+          });
+        }
+      } catch (error) {
+        console.error(`    ✗ Failed to fetch activities for athlete ${athleteId}:`, error);
+        // Continue with other athletes even if one fails
+      }
+    }
+
+    console.log(`Total activities fetched: ${allActivities.length}`);
+
+    // Store athletes in database
+    if (athletes.length > 0) {
+      await upsertAthletes(athletes);
+    }
+
+    const activities = allActivities;
 
     // Score activities
     console.log(`Scoring ${activities.length} activities...`);
@@ -84,11 +118,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       syncedAt: new Date().toISOString(),
-      athlete: {
-        id: athlete.id,
-        name: `${athlete.firstname} ${athlete.lastname}`,
-      },
       stats: {
+        teamMembers: teamMemberIds.length,
         totalActivities: scoredActivities.length,
         swimmingActivities: swimmingCount,
         totalWeightedScore: Math.round(totalWeightedScore),

@@ -389,6 +389,76 @@ This is a youth sports team website, so all content and interactions should be:
 
 ---
 
+## Implementation Status
+
+### ✅ Phase 1: Authentication & Database (COMPLETE)
+- Password-protected team area (`/team/login`)
+- Database schema with athletes, activities, and weekly_leaderboard view
+- Vercel Postgres and Redis KV configured
+- Session-based authentication with middleware
+
+### ✅ Phase 2: Strava Integration (COMPLETE)
+- **OAuth Configuration**: `lib/strava/config.ts`, `lib/strava/oauth.ts`
+- **API Client**: `lib/strava/api.ts` with rate limiting and error handling
+- **Scoring Algorithms**:
+  - `lib/scoring/activities.ts` - Swimming 1.5x multiplier, composite score
+  - `lib/scoring/heartrate.ts` - HR zones (informational only)
+- **Database Operations**: `lib/db/queries.ts` for athletes and activities
+- **API Endpoint**: `app/api/strava/activities/route.ts` - Fetch, score, and store
+- **Caching**: Redis KV with 5-minute TTL for API responses
+- **Testing**: Unit tests in `lib/scoring/__tests__/activities.test.ts`
+- **Documentation**: `SETUP_STRAVA.md` for OAuth setup
+
+**Key Files Created**:
+- `/lib/strava/config.ts` - Strava API configuration
+- `/lib/strava/oauth.ts` - Access token refresh with caching
+- `/lib/strava/api.ts` - Strava API client with rate limiter
+- `/lib/strava/types.ts` - TypeScript type definitions
+- `/lib/scoring/activities.ts` - Activity scoring logic
+- `/lib/scoring/heartrate.ts` - HR zone calculations
+- `/lib/db/queries.ts` - Database CRUD operations
+- `/app/api/strava/activities/route.ts` - Sync endpoint
+
+**Scoring Formula Summary**:
+```
+weighted_score = (moving_time_minutes + distance_km) × (is_swimming ? 1.5 : 1.0)
+composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
+```
+
+**Swimming Detection**:
+- Activity types: 'Swim', 'Pool Swim', 'Open Water Swim'
+- Keywords in name: 'swim', 'pool', 'laps', 'uwh', 'underwater hockey'
+
+**HR Zones (Informational Only - NOT Used in Rankings)**:
+- Zone 1: 50-60% max HR (Recovery)
+- Zone 2: 60-70% max HR (Endurance)
+- Zone 3: 70-80% max HR (Tempo)
+- Zone 4: 80-90% max HR (Threshold)
+- Zone 5: 90-100% max HR (VO2 Max)
+
+### 🚀 Phase 3: Leaderboard UI (NEXT)
+- Build ranking algorithm and `/api/leaderboard/data` endpoint
+- Create leaderboard components with FOMO elements:
+  - `Leaderboard.tsx` with client-side polling
+  - `AthleteCard.tsx` with swimming glow, gap indicators, streaks
+  - `ActivityFeed.tsx` for real-time activity display
+  - `SwimmingBadge.tsx`, `StreakIndicator.tsx`
+- Mobile responsive design
+- HR Intensity Dashboard (separate informational view)
+
+### 🚀 Phase 4: Webhooks (FUTURE)
+- Register Strava webhook subscription
+- Real-time activity updates
+- Toast notifications
+- Cache invalidation on activity events
+
+### 🚀 Phase 5: Polish (FUTURE)
+- Performance optimization
+- Final UX refinements
+- Production launch
+
+---
+
 **Last Updated**: January 2026
 **Next Review**: Before Worlds 2026 (July 2026)
 

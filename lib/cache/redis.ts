@@ -4,7 +4,10 @@
  * Wrapper around Vercel KV for caching Strava data
  */
 
-import { kv } from '@vercel/kv';
+import { kv as vercelKv } from '@vercel/kv';
+
+// Re-export KV client for direct usage
+export const kv = vercelKv;
 
 // Cache key prefixes
 export const CACHE_KEYS = {
@@ -27,7 +30,7 @@ export const CACHE_TTL = {
  */
 export async function getCached<T>(key: string): Promise<T | null> {
   try {
-    const value = await kv.get<T>(key);
+    const value = await vercelKv.get<T>(key);
     if (value) {
       console.log(`✅ Cache HIT: ${key}`);
     } else {
@@ -49,7 +52,7 @@ export async function setCached<T>(
   ttl: number
 ): Promise<void> {
   try {
-    await kv.set(key, value, { ex: ttl });
+    await vercelKv.set(key, value, { ex: ttl });
     console.log(`✅ Cache SET: ${key} (TTL: ${ttl}s)`);
   } catch (error) {
     console.error(`Cache set error for ${key}:`, error);
@@ -61,7 +64,7 @@ export async function setCached<T>(
  */
 export async function deleteCached(key: string): Promise<void> {
   try {
-    await kv.del(key);
+    await vercelKv.del(key);
     console.log(`✅ Cache DELETE: ${key}`);
   } catch (error) {
     console.error(`Cache delete error for ${key}:`, error);

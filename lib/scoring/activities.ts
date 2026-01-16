@@ -1,11 +1,11 @@
 /**
  * Activity Scoring Algorithms
  *
- * Scoring system for team leaderboard:
- * - Swimming activities get 1.5x multiplier
+ * Scoring system for activity tracking:
  * - Base score calculated from time and distance
- * - Composite leaderboard score: 60% activity count + 40% weighted score
- * - HR zones calculated separately (informational only, not used in rankings)
+ * - Swimming activities are tracked but no multiplier applied
+ * - Composite score: 60% activity count + 40% weighted score
+ * - HR zones calculated separately (informational only)
  */
 
 import type { StravaActivity } from '../strava/types';
@@ -36,7 +36,7 @@ export function isSwimmingActivity(activity: StravaActivity): boolean {
  * Calculate weighted score for an activity
  *
  * Base score = (moving_time in minutes) + (distance in km)
- * Swimming multiplier = 1.5x
+ * No multipliers applied - all activities scored equally
  *
  * @param activity - Strava activity object
  * @returns Weighted score (number)
@@ -46,13 +46,10 @@ export function calculateWeightedScore(activity: StravaActivity): number {
   const timeMinutes = activity.moving_time / 60;
   const distanceKm = activity.distance / 1000;
 
-  // Base score
+  // Base score (no multipliers)
   const baseScore = timeMinutes + distanceKm;
 
-  // Apply swimming multiplier
-  const multiplier = isSwimmingActivity(activity) ? 1.5 : 1.0;
-
-  return baseScore * multiplier;
+  return baseScore;
 }
 
 /**

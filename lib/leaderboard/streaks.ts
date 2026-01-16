@@ -97,9 +97,9 @@ async function getStreakFromCache(athleteId: number): Promise<number | null> {
   if (!kvInstance) return null; // Cache not available
 
   try {
-    const cached = await kvInstance.get<StreakCache>(
+    const cached = (await kvInstance.get(
       `${STREAK_CACHE_PREFIX}${athleteId}`
-    );
+    )) as StreakCache | null;
 
     if (!cached) return null;
 

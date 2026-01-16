@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     const now = Date.now();
 
     if (kvInstance) {
-      const lastSync = await kvInstance.get<number>(SYNC_CACHE_KEY);
+      const lastSync = (await kvInstance.get(SYNC_CACHE_KEY)) as number | null;
 
       if (lastSync && now - lastSync < SYNC_CACHE_TTL * 1000) {
         return NextResponse.json({

@@ -29,7 +29,7 @@ export async function GET() {
     // Check cache first (if available)
     const kvInstance = kv(); // Call function to get KV
     if (kvInstance) {
-      const cached = await kvInstance.get<LeaderboardResponse>(CACHE_KEY);
+      const cached = (await kvInstance.get(CACHE_KEY)) as LeaderboardResponse | null;
       if (cached) {
         return NextResponse.json(cached);
       }

@@ -24,18 +24,23 @@ export interface StravaTokenResponse {
 export async function getAccessToken(): Promise<string> {
   try {
     // Check cache first
-    const cached = await kv.get<string>(ACCESS_TOKEN_CACHE_KEY);
-    if (cached) {
-      return cached;
+    const kvInstance = kv(); // Call function to get KV
+    if (kvInstance) {
+      const cached = (await kvInstance.get(ACCESS_TOKEN_CACHE_KEY)) as string | null;
+      if (cached) {
+        return cached;
+      }
     }
 
     // Refresh token if not in cache
     const tokenData = await refreshAccessToken();
 
-    // Cache the new access token
-    await kv.set(ACCESS_TOKEN_CACHE_KEY, tokenData.access_token, {
-      ex: ACCESS_TOKEN_TTL,
-    });
+    // Cache the new access token (if KV available)
+    if (kvInstance) {
+      await kvInstance.set(ACCESS_TOKEN_CACHE_KEY, tokenData.access_token, {
+        ex: ACCESS_TOKEN_TTL,
+      });
+    }
 
     return tokenData.access_token;
   } catch (error) {
@@ -78,5 +83,8 @@ async function refreshAccessToken(): Promise<StravaTokenResponse> {
  * Invalidate the cached access token (useful after API errors)
  */
 export async function invalidateAccessToken(): Promise<void> {
-  await kv.del(ACCESS_TOKEN_CACHE_KEY);
+  const kvInstance = kv(); // Call function to get KV
+  if (kvInstance) {
+    await kvInstance.del(ACCESS_TOKEN_CACHE_KEY);
+  }
 }

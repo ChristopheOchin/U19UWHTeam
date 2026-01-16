@@ -81,7 +81,8 @@ const rateLimiter = new RateLimiter();
  */
 async function stravaRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retryCount = 0
 ): Promise<T> {
   const accessToken = await getAccessToken();
 
@@ -94,10 +95,12 @@ async function stravaRequest<T>(
     },
   });
 
-  // Handle token expiration
-  if (response.status === 401) {
+  // Handle token expiration - auto-retry once
+  if (response.status === 401 && retryCount === 0) {
+    console.log('Access token expired, invalidating and retrying...');
     await invalidateAccessToken();
-    throw new Error('Access token expired, please retry');
+    // Retry once with fresh token
+    return stravaRequest<T>(endpoint, options, retryCount + 1);
   }
 
   // Handle rate limiting

@@ -31,9 +31,13 @@ export default function Leaderboard({ initialData }: LeaderboardProps) {
 
       // First, sync activities from Strava
       // This will fetch all team members' public activities
-      await fetch('/api/strava/activities');
+      console.log('🔄 Triggering Strava sync...');
+      const syncResponse = await fetch('/api/strava/activities');
+      const syncData = await syncResponse.json();
+      console.log('✓ Strava sync response:', syncData);
 
       // Then fetch the updated leaderboard data
+      console.log('📊 Fetching leaderboard data...');
       const response = await fetch('/api/leaderboard/data');
 
       if (!response.ok) {
@@ -41,6 +45,7 @@ export default function Leaderboard({ initialData }: LeaderboardProps) {
       }
 
       const newData = await response.json();
+      console.log('✓ Leaderboard updated:', newData.athletes?.length, 'athletes');
       setData(newData);
       setLastUpdate(new Date());
       setError(null);

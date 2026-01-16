@@ -28,6 +28,12 @@ export default function Leaderboard({ initialData }: LeaderboardProps) {
   const fetchLeaderboard = async () => {
     try {
       setIsUpdating(true);
+
+      // First, sync activities from Strava
+      // This will fetch all team members' public activities
+      await fetch('/api/strava/activities');
+
+      // Then fetch the updated leaderboard data
       const response = await fetch('/api/leaderboard/data');
 
       if (!response.ok) {

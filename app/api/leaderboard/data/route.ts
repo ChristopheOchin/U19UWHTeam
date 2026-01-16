@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import { kv } from '@/lib/cache/redis';
 import {
   getWeeklyLeaderboard,
   getRecentActivities,
@@ -26,17 +26,21 @@ const CACHE_TTL = 30; // 30 seconds (matches client polling interval)
 
 export async function GET() {
   try {
-    // Check cache first
-    const cached = await kv.get<LeaderboardResponse>(CACHE_KEY);
-    if (cached) {
-      return NextResponse.json(cached);
+    // Check cache first (if available)
+    if (kv) {
+      const cached = await kv.get<LeaderboardResponse>(CACHE_KEY);
+      if (cached) {
+        return NextResponse.json(cached);
+      }
     }
 
     // Fetch fresh data
     const data = await fetchLeaderboardData();
 
-    // Store in cache
-    await kv.set(CACHE_KEY, data, { ex: CACHE_TTL });
+    // Store in cache (if available)
+    if (kv) {
+      await kv.set(CACHE_KEY, data, { ex: CACHE_TTL });
+    }
 
     return NextResponse.json(data);
   } catch (error) {

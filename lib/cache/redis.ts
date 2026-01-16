@@ -1,13 +1,20 @@
 /**
  * Redis Cache Utilities
  *
- * Wrapper around Vercel KV for caching Strava data
+ * Wrapper with optional KV support - gracefully falls back if KV is not available
  */
 
-import { kv as vercelKv } from '@vercel/kv';
+// Try to import KV, but don't fail if it's not configured
+let kv: any = null;
+try {
+  const vercelKv = require('@vercel/kv');
+  kv = vercelKv.kv;
+} catch (error) {
+  console.warn('⚠️ Vercel KV not available, caching disabled');
+}
 
-// Re-export KV client for direct usage
-export const kv = vercelKv;
+// Re-export KV client for direct usage (may be null)
+export { kv };
 
 // Cache key prefixes
 export const CACHE_KEYS = {
@@ -26,11 +33,23 @@ export const CACHE_TTL = {
 } as const;
 
 /**
+ * Check if KV is available
+ */
+function isKvAvailable(): boolean {
+  return kv !== null && process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+}
+
+/**
  * Get cached value
  */
 export async function getCached<T>(key: string): Promise<T | null> {
+  if (!isKvAvailable()) {
+    console.log(`⚠️ Cache disabled, skipping get: ${key}`);
+    return null;
+  }
+
   try {
-    const value = await vercelKv.get<T>(key);
+    const value = await kv.get<T>(key);
     if (value) {
       console.log(`✅ Cache HIT: ${key}`);
     } else {
@@ -51,8 +70,13 @@ export async function setCached<T>(
   value: T,
   ttl: number
 ): Promise<void> {
+  if (!isKvAvailable()) {
+    console.log(`⚠️ Cache disabled, skipping set: ${key}`);
+    return;
+  }
+
   try {
-    await vercelKv.set(key, value, { ex: ttl });
+    await kv.set(key, value, { ex: ttl });
     console.log(`✅ Cache SET: ${key} (TTL: ${ttl}s)`);
   } catch (error) {
     console.error(`Cache set error for ${key}:`, error);
@@ -63,8 +87,13 @@ export async function setCached<T>(
  * Delete cached value
  */
 export async function deleteCached(key: string): Promise<void> {
+  if (!isKvAvailable()) {
+    console.log(`⚠️ Cache disabled, skipping delete: ${key}`);
+    return;
+  }
+
   try {
-    await vercelKv.del(key);
+    await kv.del(key);
     console.log(`✅ Cache DELETE: ${key}`);
   } catch (error) {
     console.error(`Cache delete error for ${key}:`, error);
@@ -75,6 +104,11 @@ export async function deleteCached(key: string): Promise<void> {
  * Delete multiple cached values by pattern
  */
 export async function deletePattern(pattern: string): Promise<void> {
+  if (!isKvAvailable()) {
+    console.log(`⚠️ Cache disabled, skipping pattern delete: ${pattern}`);
+    return;
+  }
+
   try {
     // Note: Vercel KV doesn't support SCAN, so we'll delete known keys
     // For athlete stats, we'll need to track athlete IDs separately
@@ -90,6 +124,11 @@ export async function deletePattern(pattern: string): Promise<void> {
  * Call this when activities are added/updated
  */
 export async function invalidateLeaderboardCaches(): Promise<void> {
+  if (!isKvAvailable()) {
+    console.log(`⚠️ Cache disabled, skipping invalidation`);
+    return;
+  }
+
   try {
     await Promise.all([
       deleteCached(CACHE_KEYS.LEADERBOARD),

@@ -7,7 +7,7 @@
 
 import { getAthleteActivities } from '../db/queries';
 import { getMonday } from './utils';
-import { kv } from '@vercel/kv';
+import { kv } from '../cache/redis';
 import type { StreakCache } from './types';
 
 const STREAK_CACHE_PREFIX = 'streak:';
@@ -93,6 +93,8 @@ async function calculateStreakFromActivities(
  * Get streak from Redis cache
  */
 async function getStreakFromCache(athleteId: number): Promise<number | null> {
+  if (!kv) return null; // Cache not available
+
   try {
     const cached = await kv.get<StreakCache>(
       `${STREAK_CACHE_PREFIX}${athleteId}`
@@ -120,6 +122,8 @@ async function setStreakInCache(
   athleteId: number,
   streak: number
 ): Promise<void> {
+  if (!kv) return; // Cache not available
+
   try {
     const cacheEntry: StreakCache = {
       athleteId,
@@ -143,6 +147,8 @@ async function setStreakInCache(
  * Call this after activity sync or webhook
  */
 export async function invalidateStreakCache(athleteId: number): Promise<void> {
+  if (!kv) return; // Cache not available
+
   try {
     await kv.del(`${STREAK_CACHE_PREFIX}${athleteId}`);
   } catch (error) {
@@ -157,6 +163,8 @@ export async function invalidateStreakCache(athleteId: number): Promise<void> {
 export async function invalidateAllStreakCaches(
   athleteIds: number[]
 ): Promise<void> {
+  if (!kv) return; // Cache not available
+
   try {
     const keys = athleteIds.map((id) => `${STREAK_CACHE_PREFIX}${id}`);
     if (keys.length > 0) {

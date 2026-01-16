@@ -29,16 +29,18 @@ const SYNC_CACHE_TTL = 5 * 60; // 5 minutes
 export async function GET(request: Request) {
   try {
     // Check if we recently synced (avoid unnecessary API calls)
-    const lastSync = await kv.get<number>(SYNC_CACHE_KEY);
-    const now = Date.now();
+    if (kv) {
+      const lastSync = await kv.get<number>(SYNC_CACHE_KEY);
+      const now = Date.now();
 
-    if (lastSync && now - lastSync < SYNC_CACHE_TTL * 1000) {
-      return NextResponse.json({
-        success: true,
-        cached: true,
-        message: 'Data recently synced, using cache',
-        lastSync: new Date(lastSync).toISOString(),
-      });
+      if (lastSync && now - lastSync < SYNC_CACHE_TTL * 1000) {
+        return NextResponse.json({
+          success: true,
+          cached: true,
+          message: 'Data recently synced, using cache',
+          lastSync: new Date(lastSync).toISOString(),
+        });
+      }
     }
 
     // Fetch activities from all team members
@@ -105,8 +107,10 @@ export async function GET(request: Request) {
     console.log('Refreshing weekly leaderboard...');
     await refreshWeeklyLeaderboard();
 
-    // Update cache
-    await kv.set(SYNC_CACHE_KEY, now, { ex: SYNC_CACHE_TTL });
+    // Update cache (if available)
+    if (kv) {
+      await kv.set(SYNC_CACHE_KEY, now, { ex: SYNC_CACHE_TTL });
+    }
 
     // Calculate statistics
     const swimmingCount = scoredActivities.filter((a) => a.is_swimming).length;

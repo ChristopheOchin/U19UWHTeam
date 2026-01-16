@@ -7,6 +7,15 @@
 import { Metadata } from 'next';
 import Leaderboard from '@/components/team/Leaderboard';
 import type { LeaderboardResponse } from '@/lib/leaderboard/types';
+import {
+  getWeeklyLeaderboard,
+  getRecentActivities,
+  getAthletes,
+} from '@/lib/db/queries';
+import { calculateSmartStreak } from '@/lib/leaderboard/streaks';
+import { formatTimeAgo, isWithinHours } from '@/lib/leaderboard/utils';
+import { isSwimmingActivity } from '@/lib/scoring/activities';
+import type { EnrichedLeaderboardEntry, ActivityFeedItem } from '@/lib/leaderboard/types';
 
 export const metadata: Metadata = {
   title: 'Training Leaderboard - U19 USA Underwater Hockey',
@@ -18,22 +27,114 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function TeamPage() {
-  // Fetch initial leaderboard data server-side
+  // Fetch leaderboard data directly (server-side)
   let initialData: LeaderboardResponse;
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/leaderboard/data`, {
-      cache: 'no-store',
+    // Fetch base data
+    const [leaderboardEntries, recentActivities, athletes] = await Promise.all([
+      getWeeklyLeaderboard(),
+      getRecentActivities(20),
+      getAthletes(),
+    ]);
+
+    // Build athlete lookup map
+    const athleteMap = new Map(athletes.map((a) => [a.id, a]));
+
+    // Enrich leaderboard entries with FOMO metrics
+    const enrichedLeaderboard = await Promise.all(
+      leaderboardEntries.map(async (entry, index) => {
+        const rank = index + 1;
+        const leaderScore = leaderboardEntries[0]?.composite_score || 0;
+        const previousScore =
+          index > 0 ? leaderboardEntries[index - 1].composite_score : 0;
+
+        // Calculate gaps
+        const gapBehindLeader = Math.max(0, leaderScore - entry.composite_score);
+        const gapBehindNext = index > 0 ? previousScore - entry.composite_score : 0;
+
+        // Calculate swimming percentage
+        const swimmingPercentage =
+          entry.total_activities > 0
+            ? (entry.swimming_activities / entry.total_activities) * 100
+            : 0;
+
+        const isSwimmingDominant = swimmingPercentage >= 50;
+
+        // Calculate streak (cached)
+        const streak = await calculateSmartStreak(entry.athlete_id);
+
+        // Check if recent activity (< 6 hours)
+        const hasRecentActivity = isWithinHours(entry.last_activity_at, 6);
+
+        const enriched: EnrichedLeaderboardEntry = {
+          athleteId: entry.athlete_id,
+          rank,
+          username: entry.username,
+          firstname: entry.firstname,
+          lastname: entry.lastname,
+          profilePictureUrl: entry.profile_picture_url,
+          totalActivities: entry.total_activities,
+          swimmingActivities: entry.swimming_activities,
+          totalWeightedScore: entry.total_weighted_score,
+          compositeScore: entry.composite_score,
+          lastActivityAt: entry.last_activity_at
+            ? entry.last_activity_at.toISOString()
+            : null,
+          gapBehindLeader,
+          gapBehindNext,
+          swimmingPercentage,
+          isSwimmingDominant,
+          streak,
+          hasRecentActivity,
+        };
+
+        return enriched;
+      })
+    );
+
+    // Build activity feed
+    const activityFeed: ActivityFeedItem[] = recentActivities.map((activity) => {
+      const athlete = athleteMap.get(activity.athlete_id);
+      const startDate = new Date(activity.start_date);
+
+      return {
+        id: activity.id,
+        athleteId: activity.athlete_id,
+        athleteFirstname: athlete?.firstname || 'Unknown',
+        athleteLastname: athlete?.lastname || '',
+        type: activity.type,
+        name: activity.name,
+        isSwimming: isSwimmingActivity({
+          type: activity.type,
+          sport_type: activity.type,
+          name: activity.name,
+        } as any),
+        weightedScore: activity.weighted_score,
+        startDate: startDate.toISOString(),
+        timeAgo: formatTimeAgo(startDate),
+      };
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch leaderboard data');
-    }
+    // Calculate week start date (last Monday)
+    const now = new Date();
+    const weekStart = new Date(now);
+    const day = weekStart.getDay();
+    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+    weekStart.setDate(diff);
+    weekStart.setHours(0, 0, 0, 0);
 
-    initialData = await response.json();
+    initialData = {
+      leaderboard: enrichedLeaderboard,
+      activityFeed,
+      metadata: {
+        weekStartDate: weekStart.toISOString(),
+        lastUpdated: new Date().toISOString(),
+        totalAthletes: enrichedLeaderboard.length,
+      },
+    };
   } catch (error) {
-    console.error('Error fetching initial leaderboard data:', error);
+    console.error('Error fetching leaderboard data:', error);
 
     // Return empty data if fetch fails
     initialData = {

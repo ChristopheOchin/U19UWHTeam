@@ -69,7 +69,7 @@ export async function getCached<T>(key: string): Promise<T | null> {
   }
 
   try {
-    const value = await kvInstance.get<T>(key);
+    const value = (await kvInstance.get(key)) as T | null;
     if (value) {
       console.log(`✅ Cache HIT: ${key}`);
     } else {

@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import {
   fetchAuthenticatedAthlete,
-  fetchAthleteActivities,
+  fetchAuthenticatedUserActivities,
 } from '@/lib/strava/api';
 import { scoreActivities } from '@/lib/scoring/activities';
 import {
@@ -20,7 +20,6 @@ import {
   refreshWeeklyLeaderboard,
 } from '@/lib/db/queries';
 import { kv } from '@/lib/cache/redis';
-import { getTeamMemberIds } from '@/lib/strava/team-members';
 import type { StravaActivity, StravaAthlete } from '@/lib/strava/types';
 
 const SYNC_CACHE_KEY = 'strava:last_sync';
@@ -45,57 +44,38 @@ export async function GET(request: Request) {
       }
     }
 
-    // Fetch activities from all team members
-    // Team member IDs are maintained in lib/strava/team-members.ts
-    const teamMemberIds = getTeamMemberIds();
+    // Fetch activities from authenticated user (coach)
+    // NOTE: Due to Strava privacy, we can only fetch the coach's activities
+    // Team members need to make activities public or OAuth individually
     const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
 
-    console.log(`Fetching activities for ${teamMemberIds.length} team members...`);
+    console.log('Fetching authenticated user activities...');
 
-    // Fetch activities for each team member
-    const allActivities: StravaActivity[] = [];
-    const athletes: StravaAthlete[] = [];
+    // Fetch coach's activities
+    const activities = await fetchAuthenticatedUserActivities(
+      sevenDaysAgo,
+      undefined,
+      100 // Fetch more activities
+    );
 
-    for (const athleteId of teamMemberIds) {
-      try {
-        console.log(`  Fetching activities for athlete ID: ${athleteId}`);
+    console.log(`  ✓ Found ${activities.length} activities from authenticated user`);
 
-        const activities = await fetchAthleteActivities(
-          athleteId,
-          sevenDaysAgo,
-          undefined,
-          30
-        );
+    // Get authenticated athlete info
+    const athlete = await fetchAuthenticatedAthlete();
 
-        allActivities.push(...activities);
-        console.log(`    ✓ Found ${activities.length} activities`);
+    // Store athlete in database
+    const athletes: StravaAthlete[] = [{
+      id: athlete.id,
+      username: athlete.username || '',
+      firstname: athlete.firstname || '',
+      lastname: athlete.lastname || '',
+      profile: athlete.profile || '',
+    }];
 
-        // Extract athlete info from activities
-        if (activities.length > 0 && activities[0].athlete) {
-          // Note: Activities only have athlete.id, not full athlete details
-          // We'll store minimal athlete records
-          athletes.push({
-            id: athleteId,
-            username: '',
-            firstname: '',
-            lastname: '',
-            profile: '',
-          });
-        }
-      } catch (error) {
-        console.error(`    ✗ Failed to fetch activities for athlete ${athleteId}:`, error);
-        // Continue with other athletes even if one fails
-      }
-    }
+    console.log(`  ✓ Athlete: ${athlete.firstname} ${athlete.lastname} (ID: ${athlete.id})`);
 
-    console.log(`Total activities fetched: ${allActivities.length}`);
-
-    // Store athletes in database
-    if (athletes.length > 0) {
-      await upsertAthletes(athletes);
-    }
-
-    const activities = allActivities;
+    // Store athlete in database
+    await upsertAthletes(athletes);
 
     // Score activities
     console.log(`Scoring ${activities.length} activities...`);
@@ -124,8 +104,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       syncedAt: new Date().toISOString(),
+      athlete: {
+        id: athlete.id,
+        name: `${athlete.firstname} ${athlete.lastname}`,
+      },
       stats: {
-        teamMembers: teamMemberIds.length,
         totalActivities: scoredActivities.length,
         swimmingActivities: swimmingCount,
         totalWeightedScore: Math.round(totalWeightedScore),

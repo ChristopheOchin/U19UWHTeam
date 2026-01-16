@@ -139,7 +139,40 @@ export async function fetchFollowedAthletes(): Promise<StravaAthlete[]> {
 }
 
 /**
+ * Fetch activities for the authenticated user (coach)
+ */
+export async function fetchAuthenticatedUserActivities(
+  after?: number, // Unix timestamp
+  before?: number, // Unix timestamp
+  perPage = 30
+): Promise<StravaActivity[]> {
+  return rateLimiter.execute(async () => {
+    // Build query params
+    const params = new URLSearchParams({
+      per_page: perPage.toString(),
+    });
+
+    if (after) {
+      params.append('after', after.toString());
+    }
+
+    if (before) {
+      params.append('before', before.toString());
+    }
+
+    // Use /athlete/activities (singular) for authenticated user
+    const activities = await stravaRequest<StravaActivity[]>(
+      `/athlete/activities?${params.toString()}`
+    );
+
+    return activities;
+  });
+}
+
+/**
  * Fetch activities for a specific athlete
+ * NOTE: This only works for the authenticated user due to Strava privacy.
+ * Use fetchAuthenticatedUserActivities() instead for the coach's activities.
  */
 export async function fetchAthleteActivities(
   athleteId: number,

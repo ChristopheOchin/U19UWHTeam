@@ -468,13 +468,27 @@ composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
 
 ### ✅ Phase 3: Leaderboard UI (COMPLETE)
 
-**Current Status**: Fully deployed and functional!
+**Status**: ✅ Live at https://u19-uwh-team.vercel.app/team
+
+**Deployment Date**: January 16, 2026
+
+**Working Features**:
+- ✅ Real-time activity syncing from Strava (30-second polling)
+- ✅ Swimming detection with cyan highlighting (1.5x score multiplier)
+- ✅ Composite scoring: 60% activity count + 40% weighted score
+- ✅ Smart streak calculation (consecutive weeks with 5+ training days)
+- ✅ Leader crown, rank badges, gap indicators
+- ✅ Recent activity feed with time-ago display
+- ✅ Mobile-responsive design (60/40 desktop split, stacked mobile)
+- ✅ Password-protected team area
+- ✅ Auto-refresh materialized view
 
 **Data Source**: Coach's Strava activities
-- Using correct endpoint: `/athlete/activities` for authenticated user
+- Using correct endpoint: `/athlete/activities` with `activity:read_all` scope
 - Fetches up to 100 activities from last 7 days
-- Privacy limitation: Can only show coach's data until team members make activities public
-- Future: Team members will make activities public (Option A) for full team leaderboard
+- Refresh token: `eae3f0d879f9b5cabc7641541c46d0f143172702` (in Vercel env vars)
+- Privacy limitation: Currently only showing coach's data
+- **Next step**: Team members make Strava activities public for full team leaderboard
 
 **Components to Build**:
 1. **`/api/leaderboard/data` endpoint**
@@ -536,16 +550,35 @@ composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
 - Database operations working
 - Leaderboard materialized view ready
 
-### 🚀 Phase 4: Webhooks (FUTURE)
+### 🚧 Phase 4: HR Zone Dashboard (IN PROGRESS)
+
+**Purpose**: Informational view showing heart rate zone distribution per athlete
+
+**Important**: This is **NOT used for rankings** - purely informational for training insights
+
+**Goals**:
+- Show time spent in each HR zone (Zone 1-5) per athlete
+- Bar chart visualization
+- Only display for athletes with HR data
+- Help athletes understand training intensity distribution
+
+**Location**: Separate tab/page at `/team/hr-zones` (or modal from leaderboard)
+
+**Data Available**:
+- HR zones already calculated in `lib/scoring/heartrate.ts`
+- Activities table has `average_heartrate` and `max_heartrate` columns
+- Need to aggregate time-in-zone across activities
+
+### 🚀 Phase 5: Webhooks (FUTURE)
 - Register Strava webhook subscription
-- Real-time activity updates
-- Toast notifications
+- Real-time activity updates (instant instead of 30-second polling)
+- Toast notifications for new activities
 - Cache invalidation on activity events
 
-### 🚀 Phase 5: Polish (FUTURE)
+### 🚀 Phase 6: Polish (FUTURE)
 - Performance optimization
 - Final UX refinements
-- Production launch
+- Full team integration (after members make activities public)
 
 ---
 

@@ -42,8 +42,10 @@ export async function calculateAthleteZoneDistribution(
       athlete: { id: athleteId },
       name: a.name,
       type: a.type,
+      sport_type: a.type, // Use type as sport_type
       distance: a.distance || 0,
       moving_time: a.moving_time || 0,
+      elapsed_time: a.moving_time || 0, // Use moving_time as elapsed_time
       total_elevation_gain: a.total_elevation_gain || 0,
       start_date: a.start_date.toISOString(),
       start_date_local: a.start_date.toISOString(),

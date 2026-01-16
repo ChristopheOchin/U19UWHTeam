@@ -9,6 +9,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import type { LeaderboardResponse } from '@/lib/leaderboard/types';
 import AthleteCard from './AthleteCard';
 import ActivityFeed from './ActivityFeed';
@@ -76,12 +77,20 @@ export default function Leaderboard({ initialData }: LeaderboardProps) {
                 )}
               </p>
             </div>
-            <a
-              href="/"
-              className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              ← Back to Website
-            </a>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/team/hr-zones"
+                className="text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium"
+              >
+                📊 HR Zones
+              </Link>
+              <a
+                href="/"
+                className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                ← Back to Website
+              </a>
+            </div>
           </div>
 
           {/* Error Banner */}

@@ -550,26 +550,55 @@ composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
 - Database operations working
 - Leaderboard materialized view ready
 
-### 🚧 Phase 4: HR Zone Dashboard (IN PROGRESS)
+### ✅ Phase 4: HR Zone Dashboard (COMPLETE)
+
+**Status**: ✅ Live at https://u19-uwh-team.vercel.app/team/hr-zones
+
+**Deployment Date**: January 16, 2026
 
 **Purpose**: Informational view showing heart rate zone distribution per athlete
 
 **Important**: This is **NOT used for rankings** - purely informational for training insights
 
-**Goals**:
-- Show time spent in each HR zone (Zone 1-5) per athlete
-- Bar chart visualization
-- Only display for athletes with HR data
-- Help athletes understand training intensity distribution
+**Working Features**:
+- ✅ Time spent in each HR zone (Zone 1-5: Recovery, Endurance, Tempo, Threshold, VO2 Max)
+- ✅ Horizontal bar chart visualization with zone-specific colors
+- ✅ Per-athlete cards showing zone distribution percentages
+- ✅ Only displays for athletes with HR data from activities
+- ✅ Estimation based on average HR per activity
+- ✅ Navigation link from leaderboard
+- ✅ 60-second polling (slower than leaderboard since HR data changes less)
+- ✅ Mobile-responsive grid layout
+- ✅ Empty state handling for athletes without HR data
 
-**Location**: Separate tab/page at `/team/hr-zones` (or modal from leaderboard)
+**Location**: `/team/hr-zones` (linked from leaderboard header)
 
-**Data Available**:
-- HR zones already calculated in `lib/scoring/heartrate.ts`
-- Activities table has `average_heartrate` and `max_heartrate` columns
-- Need to aggregate time-in-zone across activities
+**API Endpoint**: `/api/team/hr-zones`
 
-### 🚀 Phase 5: Webhooks (FUTURE)
+**Components Created**:
+- `lib/hr/types.ts` - TypeScript interfaces for HR zone data
+- `lib/hr/zones.ts` - Zone calculation helpers
+- `app/api/team/hr-zones/route.ts` - API endpoint
+- `components/team/HRZoneBar.tsx` - Single zone bar component
+- `components/team/HRZoneCard.tsx` - Athlete card with all zones
+- `components/team/HRZoneDashboard.tsx` - Main container with polling
+- `app/team/hr-zones/page.tsx` - Page route
+
+**Color Scheme**:
+- Zone 1 (Recovery): Green `#22C55E` (50-60% max HR)
+- Zone 2 (Endurance): Blue `#3B82F6` (60-70% max HR)
+- Zone 3 (Tempo): Yellow `#FBBF24` (70-80% max HR)
+- Zone 4 (Threshold): Orange `#F97316` (80-90% max HR)
+- Zone 5 (VO2 Max): Red `#EF4444` (90-100% max HR)
+
+**Calculation Method**:
+- Simplified estimation: Entire activity duration assigned to zone of average HR
+- Uses existing `calculateHRZoneStats()` from `lib/scoring/heartrate.ts`
+- Fetches activities from last 7 days with `average_heartrate !== null`
+- Displays disclaimer: "Estimated from average HR per activity"
+- Aggregates time-in-zone across all activities per athlete
+
+### 🚀 Phase 5: Webhooks & Real-Time Updates (FUTURE)
 - Register Strava webhook subscription
 - Real-time activity updates (instant instead of 30-second polling)
 - Toast notifications for new activities

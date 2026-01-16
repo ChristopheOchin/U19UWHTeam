@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 export default function AboutSection() {
   return (
     <section className="py-16 md:py-24 bg-gradient-to-b from-gray-50 to-white">
@@ -21,35 +23,35 @@ export default function AboutSection() {
 
             {/* Logos Section */}
             <div className="border-t border-gray-200 pt-8">
-              <h3 className="text-xl font-semibold text-[#0A4C6D] mb-6 text-center">
-                Official Partners
-              </h3>
-              <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
-                {/* CMAS Logo Placeholder */}
+              <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16">
+                {/* CMAS Logo */}
                 <div className="flex flex-col items-center">
-                  <div className="w-32 h-32 bg-gradient-to-br from-[#0A4C6D] to-[#00D9FF] rounded-lg flex items-center justify-center shadow-lg">
-                    <div className="text-white font-bold text-center p-4">
-                      <div className="text-2xl">CMAS</div>
-                      <div className="text-xs mt-1">Logo</div>
-                    </div>
+                  <div className="relative w-40 h-40 md:w-48 md:h-48">
+                    <Image
+                      src="/images/cmas-logo.png"
+                      alt="CMAS Logo"
+                      fill
+                      className="object-contain"
+                      priority
+                    />
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">CMAS</p>
+                  <p className="text-sm text-gray-600 mt-3 font-medium">CMAS</p>
                 </div>
 
-                {/* Turkish Federation Logo Placeholder */}
+                {/* Turkish Federation Logo */}
                 <div className="flex flex-col items-center">
-                  <div className="w-32 h-32 bg-gradient-to-br from-[#DC143C] to-[#FF6B6B] rounded-lg flex items-center justify-center shadow-lg">
-                    <div className="text-white font-bold text-center p-4">
-                      <div className="text-2xl">🇹🇷</div>
-                      <div className="text-xs mt-1">Turkish Fed</div>
-                    </div>
+                  <div className="relative w-40 h-40 md:w-48 md:h-48">
+                    <Image
+                      src="/images/tssf-logo.png"
+                      alt="Turkish Underwater Sports Federation Logo"
+                      fill
+                      className="object-contain"
+                      priority
+                    />
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">Turkish Federation</p>
+                  <p className="text-sm text-gray-600 mt-3 font-medium">Turkish Federation</p>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 text-center mt-6 italic">
-                Logo placeholders - Actual logos can be added later
-              </p>
             </div>
           </div>
 

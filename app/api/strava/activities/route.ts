@@ -10,9 +10,10 @@
 
 import { NextResponse } from 'next/server';
 import {
-  fetchAuthenticatedAthlete,
-  fetchAuthenticatedUserActivities,
+  fetchPublicAthlete,
+  fetchPublicAthleteActivities,
 } from '@/lib/strava/api';
+import { getTeamMemberIds } from '@/lib/strava/team-members';
 import { scoreActivities } from '@/lib/scoring/activities';
 import {
   upsertAthletes,
@@ -44,46 +45,122 @@ export async function GET(request: Request) {
       }
     }
 
-    // Fetch activities from authenticated user (coach)
-    // NOTE: Due to Strava privacy, we can only fetch the coach's activities
-    // Team members need to make activities public or OAuth individually
+    // Get all team member IDs
+    const teamMemberIds = getTeamMemberIds();
+    console.log(`\n🏊 Syncing activities for ${teamMemberIds.length} team members...`);
+
+    // Fetch activities from last 7 days
     const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
 
-    console.log('Fetching authenticated user activities...');
+    // Track results per athlete
+    const athleteResults: Array<{
+      athleteId: number;
+      name: string;
+      activityCount: number;
+      status: 'success' | 'private' | 'error';
+      error?: string;
+    }> = [];
 
-    // Fetch coach's activities
-    const activities = await fetchAuthenticatedUserActivities(
-      sevenDaysAgo,
-      undefined,
-      100 // Fetch more activities
-    );
+    const allActivities: StravaActivity[] = [];
+    const validAthletes: StravaAthlete[] = [];
 
-    console.log(`  ✓ Found ${activities.length} activities from authenticated user`);
+    // Fetch activities for each team member
+    // Use sequential fetching with rate limiting already handled by rateLimiter
+    for (const athleteId of teamMemberIds) {
+      try {
+        console.log(`\n  Fetching athlete ${athleteId}...`);
 
-    // Get authenticated athlete info
-    const athlete = await fetchAuthenticatedAthlete();
+        // Fetch athlete profile
+        const athlete = await fetchPublicAthlete(athleteId);
 
-    // Store athlete in database
-    const athletes: StravaAthlete[] = [{
-      id: athlete.id,
-      username: athlete.username || '',
-      firstname: athlete.firstname || '',
-      lastname: athlete.lastname || '',
-      profile: athlete.profile || '',
-    }];
+        if (!athlete) {
+          console.log(`    ⚠️  Profile not accessible (private or not found)`);
+          athleteResults.push({
+            athleteId,
+            name: 'Unknown',
+            activityCount: 0,
+            status: 'private',
+            error: 'Profile not accessible',
+          });
+          continue;
+        }
 
-    console.log(`  ✓ Athlete: ${athlete.firstname} ${athlete.lastname} (ID: ${athlete.id})`);
+        // Fetch activities for this athlete
+        const activities = await fetchPublicAthleteActivities(
+          athleteId,
+          sevenDaysAgo,
+          undefined,
+          100 // Fetch up to 100 activities
+        );
 
-    // Store athlete in database
-    await upsertAthletes(athletes);
+        const athleteName = `${athlete.firstname} ${athlete.lastname}`;
 
-    // Score activities
-    console.log(`Scoring ${activities.length} activities...`);
-    const scoredActivities = scoreActivities(activities);
+        if (activities.length === 0) {
+          console.log(`    ℹ️  ${athleteName}: No public activities found`);
+          athleteResults.push({
+            athleteId,
+            name: athleteName,
+            activityCount: 0,
+            status: 'success',
+          });
+        } else {
+          console.log(`    ✓  ${athleteName}: ${activities.length} activities`);
+          athleteResults.push({
+            athleteId,
+            name: athleteName,
+            activityCount: activities.length,
+            status: 'success',
+          });
+        }
 
-    // Store activities in database
-    console.log('Storing activities in database...');
-    await upsertActivities(scoredActivities);
+        // Add to collections
+        allActivities.push(...activities);
+        validAthletes.push({
+          id: athlete.id,
+          username: athlete.username || '',
+          firstname: athlete.firstname || '',
+          lastname: athlete.lastname || '',
+          profile: athlete.profile || '',
+        });
+      } catch (error) {
+        console.log(`    ❌  Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        athleteResults.push({
+          athleteId,
+          name: 'Unknown',
+          activityCount: 0,
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    console.log(`\n✓ Fetched ${allActivities.length} total activities from ${validAthletes.length} athletes`);
+
+    // Store athletes in database
+    if (validAthletes.length > 0) {
+      console.log('Storing athletes in database...');
+      await upsertAthletes(validAthletes);
+    }
+
+    // Score all activities
+    if (allActivities.length > 0) {
+      console.log(`Scoring ${allActivities.length} activities...`);
+      const scoredActivities = scoreActivities(allActivities);
+
+      // Store activities in database
+      console.log('Storing activities in database...');
+      await upsertActivities(scoredActivities);
+
+      // Calculate statistics
+      const swimmingCount = scoredActivities.filter((a) => a.is_swimming).length;
+      const totalWeightedScore = scoredActivities.reduce(
+        (sum, a) => sum + a.weighted_score,
+        0
+      );
+
+      console.log(`  ✓ ${swimmingCount} swimming activities`);
+      console.log(`  ✓ Total weighted score: ${Math.round(totalWeightedScore)}`);
+    }
 
     // Refresh leaderboard materialized view
     console.log('Refreshing weekly leaderboard...');
@@ -94,9 +171,15 @@ export async function GET(request: Request) {
       await kvInstance.set(SYNC_CACHE_KEY, now, { ex: SYNC_CACHE_TTL });
     }
 
-    // Calculate statistics
-    const swimmingCount = scoredActivities.filter((a) => a.is_swimming).length;
-    const totalWeightedScore = scoredActivities.reduce(
+    // Prepare summary
+    const successfulAthletes = athleteResults.filter((a) => a.status === 'success');
+    const privateAthletes = athleteResults.filter((a) => a.status === 'private');
+    const errorAthletes = athleteResults.filter((a) => a.status === 'error');
+
+    const swimmingCount = allActivities.filter((a) =>
+      scoreActivities([a])[0]?.is_swimming
+    ).length;
+    const totalWeightedScore = scoreActivities(allActivities).reduce(
       (sum, a) => sum + a.weighted_score,
       0
     );
@@ -104,15 +187,16 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       syncedAt: new Date().toISOString(),
-      athlete: {
-        id: athlete.id,
-        name: `${athlete.firstname} ${athlete.lastname}`,
-      },
-      stats: {
-        totalActivities: scoredActivities.length,
+      summary: {
+        totalAthletes: teamMemberIds.length,
+        successfulAthletes: successfulAthletes.length,
+        privateAthletes: privateAthletes.length,
+        errorAthletes: errorAthletes.length,
+        totalActivities: allActivities.length,
         swimmingActivities: swimmingCount,
         totalWeightedScore: Math.round(totalWeightedScore),
       },
+      athletes: athleteResults,
     });
   } catch (error) {
     console.error('Failed to sync Strava activities:', error);

@@ -206,6 +206,83 @@ export async function fetchAthleteActivities(
 }
 
 /**
+ * Fetch public activities for a specific athlete by ID
+ *
+ * IMPORTANT: This only returns activities if the athlete has made them public.
+ * Athletes must go to https://www.strava.com/settings/privacy and set "Activities" to "Everyone".
+ *
+ * @param athleteId - Strava athlete ID
+ * @param after - Unix timestamp (fetch activities after this date)
+ * @param before - Unix timestamp (fetch activities before this date)
+ * @param perPage - Number of results per page (default 30, max 200)
+ * @returns Array of public activities, or empty array if private/not found
+ */
+export async function fetchPublicAthleteActivities(
+  athleteId: number,
+  after?: number,
+  before?: number,
+  perPage = 30
+): Promise<StravaActivity[]> {
+  return rateLimiter.execute(async () => {
+    try {
+      const params = new URLSearchParams({
+        per_page: perPage.toString(),
+      });
+
+      if (after) {
+        params.append('after', after.toString());
+      }
+
+      if (before) {
+        params.append('before', before.toString());
+      }
+
+      // Use /athletes/{id}/activities endpoint
+      // This returns public activities without requiring individual OAuth
+      const activities = await stravaRequest<StravaActivity[]>(
+        `/athletes/${athleteId}/activities?${params.toString()}`
+      );
+
+      return activities;
+    } catch (error) {
+      // Log specific error for debugging
+      if (error instanceof Error) {
+        if (error.message.includes('401')) {
+          console.warn(`⚠️  Athlete ${athleteId}: Activities are private or account not found`);
+        } else if (error.message.includes('404')) {
+          console.warn(`⚠️  Athlete ${athleteId}: Not found`);
+        } else {
+          console.warn(`⚠️  Athlete ${athleteId}: ${error.message}`);
+        }
+      }
+
+      // Return empty array instead of throwing - allows partial success
+      return [];
+    }
+  });
+}
+
+/**
+ * Fetch public athlete profile information
+ *
+ * @param athleteId - Strava athlete ID
+ * @returns Athlete profile or null if not found/private
+ */
+export async function fetchPublicAthlete(
+  athleteId: number
+): Promise<StravaAthlete | null> {
+  return rateLimiter.execute(async () => {
+    try {
+      const athlete = await stravaRequest<StravaAthlete>(`/athletes/${athleteId}`);
+      return athlete;
+    } catch (error) {
+      console.warn(`⚠️  Failed to fetch athlete ${athleteId}:`, error instanceof Error ? error.message : 'Unknown error');
+      return null;
+    }
+  });
+}
+
+/**
  * Fetch all team activities within a date range
  *
  * This fetches activities for all followed athletes (team members)

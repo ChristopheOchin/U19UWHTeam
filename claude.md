@@ -457,14 +457,21 @@ composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
 - Zone 4: 80-90% max HR (Threshold)
 - Zone 5: 90-100% max HR (VO2 Max)
 
-**Important Strava API Limitations**:
-- ✅ Can fetch authenticated user's (coach's) activities via `/athlete/activities`
-- ❌ Cannot fetch other athletes' activities without their individual OAuth
-- ❌ Endpoint `/athletes/{id}/activities` only works for authenticated user
-- ✅ **FIXED**: Now correctly using `/athlete/activities` for coach's data
-- 🔄 Current solution: Leaderboard shows coach's activities only
-- 🔄 Future solution: Team members make activities public OR individual OAuth (Phase 4)
-- See `STRAVA_PRIVACY_SOLUTION.md` and `STRAVA_API_LIMITATIONS.md` for details
+**Strava API - Multi-Athlete Support**:
+- ✅ **NEW**: System now fetches activities for ALL team members
+- ✅ Uses `/athletes/{id}/activities` endpoint for public activities
+- ✅ Gracefully handles mixed privacy settings (some public, some private)
+- ✅ Athletes must make activities public via https://www.strava.com/settings/privacy
+- ✅ Partial success supported: continues if some athletes have private activities
+- ✅ Rate limiting automatically handled (100 requests per 15 minutes)
+- 📝 Adding new athletes: Edit `lib/strava/team-members.ts` and redeploy
+
+**How to Add New Athletes** (detailed in `lib/strava/team-members.ts`):
+1. Ask athlete to make Strava activities public (Settings → Privacy → Activities = "Everyone")
+2. Get their Strava ID from https://www.strava.com/settings/profile
+3. Add ID to `TEAM_MEMBER_IDS` array in `lib/strava/team-members.ts`
+4. Commit and push to GitHub (Vercel auto-deploys in ~2 minutes)
+5. Athlete appears on dashboard within 30 seconds
 
 ### ✅ Phase 3: Leaderboard UI (COMPLETE)
 
@@ -483,12 +490,13 @@ composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
 - ✅ Password-protected team area
 - ✅ Auto-refresh materialized view
 
-**Data Source**: Coach's Strava activities
-- Using correct endpoint: `/athlete/activities` with `activity:read_all` scope
-- Fetches up to 100 activities from last 7 days
+**Data Source**: All team members' public Strava activities
+- ✅ **UPDATED**: Now fetches activities for all 9 athletes in `TEAM_MEMBER_IDS`
+- Uses `/athletes/{id}/activities` endpoint for each team member
+- Fetches up to 100 activities per athlete from last 7 days
+- Gracefully handles athletes with private activities (logs warning, continues)
 - Refresh token: `eae3f0d879f9b5cabc7641541c46d0f143172702` (in Vercel env vars)
-- Privacy limitation: Currently only showing coach's data
-- **Next step**: Team members make Strava activities public for full team leaderboard
+- Athletes with private activities will show 0 activities until they update privacy settings
 
 **Components to Build**:
 1. **`/api/leaderboard/data` endpoint**

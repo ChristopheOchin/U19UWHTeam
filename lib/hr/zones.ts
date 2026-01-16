@@ -5,10 +5,9 @@
  * Uses simplified estimation: entire activity duration assigned to zone of average HR.
  */
 
-import { getAthleteActivities } from '@/lib/db/queries';
+import { getAthleteActivities, type DBThlete } from '@/lib/db/queries';
 import { calculateHRZoneStats } from '@/lib/scoring/heartrate';
 import type { HRZoneData, AthleteHRZoneData } from './types';
-import type { Athlete } from '@/lib/db/schema';
 
 /**
  * Calculate HR zone distribution for a single athlete
@@ -74,7 +73,7 @@ export async function calculateAthleteZoneDistribution(
  * @returns Array of athlete HR zone data
  */
 export async function calculateAllAthleteZones(
-  athletes: Athlete[]
+  athletes: DBThlete[]
 ): Promise<AthleteHRZoneData[]> {
   const athleteZones = await Promise.all(
     athletes.map(async (athlete) => {

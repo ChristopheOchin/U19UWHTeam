@@ -24,7 +24,7 @@ import { kv } from '@/lib/cache/redis';
 import type { StravaActivity, StravaAthlete } from '@/lib/strava/types';
 
 const SYNC_CACHE_KEY = 'strava:last_sync';
-const SYNC_CACHE_TTL = 5 * 60; // 5 minutes
+const SYNC_CACHE_TTL = 30; // 30 seconds (matches frontend polling)
 
 export async function GET(request: Request) {
   try {
@@ -36,11 +36,14 @@ export async function GET(request: Request) {
       const lastSync = (await kvInstance.get(SYNC_CACHE_KEY)) as number | null;
 
       if (lastSync && now - lastSync < SYNC_CACHE_TTL * 1000) {
+        const secondsAgo = Math.floor((now - lastSync) / 1000);
+        console.log(`⚡ Cache hit: Last sync ${secondsAgo}s ago, skipping Strava API calls`);
         return NextResponse.json({
           success: true,
           cached: true,
           message: 'Data recently synced, using cache',
           lastSync: new Date(lastSync).toISOString(),
+          secondsSinceLastSync: secondsAgo,
         });
       }
     }

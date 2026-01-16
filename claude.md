@@ -458,21 +458,23 @@ composite_score = (activity_count × 100 × 0.6) + (total_weighted_score × 0.4)
 - Zone 5: 90-100% max HR (VO2 Max)
 
 **Important Strava API Limitations**:
-- ✅ Can fetch authenticated user's (coach's) activities
+- ✅ Can fetch authenticated user's (coach's) activities via `/athlete/activities`
 - ❌ Cannot fetch other athletes' activities without their individual OAuth
-- ❌ Club activities endpoint lacks critical data (no IDs, dates, athlete IDs)
-- 🔄 Current solution: Using coach's activities for Phase 3 development
-- 🔄 Future solution: Team members make activities public (Option A)
+- ❌ Endpoint `/athletes/{id}/activities` only works for authenticated user
+- ✅ **FIXED**: Now correctly using `/athlete/activities` for coach's data
+- 🔄 Current solution: Leaderboard shows coach's activities only
+- 🔄 Future solution: Team members make activities public OR individual OAuth (Phase 4)
 - See `STRAVA_PRIVACY_SOLUTION.md` and `STRAVA_API_LIMITATIONS.md` for details
 
-### 🚀 Phase 3: Leaderboard UI (NEXT)
+### ✅ Phase 3: Leaderboard UI (COMPLETE)
 
-**Current Status**: Ready to build UI with coach's activity data
+**Current Status**: Fully deployed and functional!
 
-**Data Source**: Coach's Strava activities (for testing/development)
-- 9 team member IDs stored in `lib/strava/team-members.ts`
-- Privacy limitation: Can only fetch authenticated user's activities with current OAuth
-- Future: Team members will make activities public (Option A) for full team data
+**Data Source**: Coach's Strava activities
+- Using correct endpoint: `/athlete/activities` for authenticated user
+- Fetches up to 100 activities from last 7 days
+- Privacy limitation: Can only show coach's data until team members make activities public
+- Future: Team members will make activities public (Option A) for full team leaderboard
 
 **Components to Build**:
 1. **`/api/leaderboard/data` endpoint**

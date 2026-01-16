@@ -93,10 +93,11 @@ async function calculateStreakFromActivities(
  * Get streak from Redis cache
  */
 async function getStreakFromCache(athleteId: number): Promise<number | null> {
-  if (!kv) return null; // Cache not available
+  const kvInstance = kv(); // Call function to get KV
+  if (!kvInstance) return null; // Cache not available
 
   try {
-    const cached = await kv.get<StreakCache>(
+    const cached = await kvInstance.get<StreakCache>(
       `${STREAK_CACHE_PREFIX}${athleteId}`
     );
 
@@ -122,7 +123,8 @@ async function setStreakInCache(
   athleteId: number,
   streak: number
 ): Promise<void> {
-  if (!kv) return; // Cache not available
+  const kvInstance = kv(); // Call function to get KV
+  if (!kvInstance) return; // Cache not available
 
   try {
     const cacheEntry: StreakCache = {
@@ -131,7 +133,7 @@ async function setStreakInCache(
       computedAt: Date.now(),
     };
 
-    await kv.set(
+    await kvInstance.set(
       `${STREAK_CACHE_PREFIX}${athleteId}`,
       cacheEntry,
       { ex: STREAK_CACHE_TTL } // Redis TTL
@@ -147,10 +149,11 @@ async function setStreakInCache(
  * Call this after activity sync or webhook
  */
 export async function invalidateStreakCache(athleteId: number): Promise<void> {
-  if (!kv) return; // Cache not available
+  const kvInstance = kv(); // Call function to get KV
+  if (!kvInstance) return; // Cache not available
 
   try {
-    await kv.del(`${STREAK_CACHE_PREFIX}${athleteId}`);
+    await kvInstance.del(`${STREAK_CACHE_PREFIX}${athleteId}`);
   } catch (error) {
     console.error('Error invalidating streak cache:', error);
   }
@@ -163,12 +166,13 @@ export async function invalidateStreakCache(athleteId: number): Promise<void> {
 export async function invalidateAllStreakCaches(
   athleteIds: number[]
 ): Promise<void> {
-  if (!kv) return; // Cache not available
+  const kvInstance = kv(); // Call function to get KV
+  if (!kvInstance) return; // Cache not available
 
   try {
     const keys = athleteIds.map((id) => `${STREAK_CACHE_PREFIX}${id}`);
     if (keys.length > 0) {
-      await kv.del(...keys);
+      await kvInstance.del(...keys);
     }
   } catch (error) {
     console.error('Error invalidating all streak caches:', error);

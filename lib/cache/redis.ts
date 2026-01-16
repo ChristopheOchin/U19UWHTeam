@@ -4,17 +4,35 @@
  * Wrapper with optional KV support - gracefully falls back if KV is not available
  */
 
-// Try to import KV, but don't fail if it's not configured
+// Lazily initialize KV only when needed and configured
 let kv: any = null;
-try {
-  const vercelKv = require('@vercel/kv');
-  kv = vercelKv.kv;
-} catch (error) {
-  console.warn('⚠️ Vercel KV not available, caching disabled');
+let kvInitialized = false;
+
+function getKv() {
+  if (kvInitialized) return kv;
+
+  // Check if environment variables are set
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    console.warn('⚠️ Vercel KV not configured, caching disabled');
+    kvInitialized = true;
+    return null;
+  }
+
+  try {
+    const { kv: vercelKv } = require('@vercel/kv');
+    kv = vercelKv;
+    kvInitialized = true;
+    console.log('✅ Vercel KV initialized');
+    return kv;
+  } catch (error) {
+    console.warn('⚠️ Failed to initialize Vercel KV:', error);
+    kvInitialized = true;
+    return null;
+  }
 }
 
-// Re-export KV client for direct usage (may be null)
-export { kv };
+// Export lazy KV getter
+export { getKv as kv };
 
 // Cache key prefixes
 export const CACHE_KEYS = {
@@ -36,20 +54,22 @@ export const CACHE_TTL = {
  * Check if KV is available
  */
 function isKvAvailable(): boolean {
-  return kv !== null && process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+  const kvInstance = getKv();
+  return kvInstance !== null;
 }
 
 /**
  * Get cached value
  */
 export async function getCached<T>(key: string): Promise<T | null> {
-  if (!isKvAvailable()) {
+  const kvInstance = getKv();
+  if (!kvInstance) {
     console.log(`⚠️ Cache disabled, skipping get: ${key}`);
     return null;
   }
 
   try {
-    const value = await kv.get<T>(key);
+    const value = await kvInstance.get<T>(key);
     if (value) {
       console.log(`✅ Cache HIT: ${key}`);
     } else {
@@ -70,13 +90,14 @@ export async function setCached<T>(
   value: T,
   ttl: number
 ): Promise<void> {
-  if (!isKvAvailable()) {
+  const kvInstance = getKv();
+  if (!kvInstance) {
     console.log(`⚠️ Cache disabled, skipping set: ${key}`);
     return;
   }
 
   try {
-    await kv.set(key, value, { ex: ttl });
+    await kvInstance.set(key, value, { ex: ttl });
     console.log(`✅ Cache SET: ${key} (TTL: ${ttl}s)`);
   } catch (error) {
     console.error(`Cache set error for ${key}:`, error);
@@ -87,13 +108,14 @@ export async function setCached<T>(
  * Delete cached value
  */
 export async function deleteCached(key: string): Promise<void> {
-  if (!isKvAvailable()) {
+  const kvInstance = getKv();
+  if (!kvInstance) {
     console.log(`⚠️ Cache disabled, skipping delete: ${key}`);
     return;
   }
 
   try {
-    await kv.del(key);
+    await kvInstance.del(key);
     console.log(`✅ Cache DELETE: ${key}`);
   } catch (error) {
     console.error(`Cache delete error for ${key}:`, error);
@@ -104,7 +126,8 @@ export async function deleteCached(key: string): Promise<void> {
  * Delete multiple cached values by pattern
  */
 export async function deletePattern(pattern: string): Promise<void> {
-  if (!isKvAvailable()) {
+  const kvInstance = getKv();
+  if (!kvInstance) {
     console.log(`⚠️ Cache disabled, skipping pattern delete: ${pattern}`);
     return;
   }
@@ -124,7 +147,8 @@ export async function deletePattern(pattern: string): Promise<void> {
  * Call this when activities are added/updated
  */
 export async function invalidateLeaderboardCaches(): Promise<void> {
-  if (!isKvAvailable()) {
+  const kvInstance = getKv();
+  if (!kvInstance) {
     console.log(`⚠️ Cache disabled, skipping invalidation`);
     return;
   }

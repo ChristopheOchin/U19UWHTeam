@@ -29,9 +29,11 @@ const SYNC_CACHE_TTL = 5 * 60; // 5 minutes
 export async function GET(request: Request) {
   try {
     // Check if we recently synced (avoid unnecessary API calls)
-    if (kv) {
-      const lastSync = await kv.get<number>(SYNC_CACHE_KEY);
-      const now = Date.now();
+    const kvInstance = kv(); // Call function to get KV
+    const now = Date.now();
+
+    if (kvInstance) {
+      const lastSync = await kvInstance.get<number>(SYNC_CACHE_KEY);
 
       if (lastSync && now - lastSync < SYNC_CACHE_TTL * 1000) {
         return NextResponse.json({
@@ -108,8 +110,8 @@ export async function GET(request: Request) {
     await refreshWeeklyLeaderboard();
 
     // Update cache (if available)
-    if (kv) {
-      await kv.set(SYNC_CACHE_KEY, now, { ex: SYNC_CACHE_TTL });
+    if (kvInstance) {
+      await kvInstance.set(SYNC_CACHE_KEY, now, { ex: SYNC_CACHE_TTL });
     }
 
     // Calculate statistics
@@ -150,7 +152,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     // Clear sync cache to force refresh
-    await kv.del(SYNC_CACHE_KEY);
+    const kvInstance = kv(); // Call function to get KV
+    if (kvInstance) {
+      await kvInstance.del(SYNC_CACHE_KEY);
+    }
 
     // Call GET handler
     return GET(request);

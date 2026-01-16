@@ -27,8 +27,9 @@ const CACHE_TTL = 30; // 30 seconds (matches client polling interval)
 export async function GET() {
   try {
     // Check cache first (if available)
-    if (kv) {
-      const cached = await kv.get<LeaderboardResponse>(CACHE_KEY);
+    const kvInstance = kv(); // Call function to get KV
+    if (kvInstance) {
+      const cached = await kvInstance.get<LeaderboardResponse>(CACHE_KEY);
       if (cached) {
         return NextResponse.json(cached);
       }
@@ -38,8 +39,8 @@ export async function GET() {
     const data = await fetchLeaderboardData();
 
     // Store in cache (if available)
-    if (kv) {
-      await kv.set(CACHE_KEY, data, { ex: CACHE_TTL });
+    if (kvInstance) {
+      await kvInstance.set(CACHE_KEY, data, { ex: CACHE_TTL });
     }
 
     return NextResponse.json(data);
